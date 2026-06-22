@@ -1,6 +1,6 @@
 # Pollora Ajax
 
-A modern PHP package for WordPress AJAX action management with a fluent API.
+A modern PHP package for WordPress AJAX action management with a fluent API and secure defaults.
 
 ## Installation
 
@@ -27,6 +27,30 @@ Ajax::listen('public_action', function () {
 Ajax::listen('guest_action', function () {
     // ...
 })->forGuestUsers();
+```
+
+### With the Pollora Framework
+
+When used inside Pollora, you can also use the `#[Ajax]` PHP attribute for declarative registration:
+
+```php
+use Pollora\Attributes\Ajax;
+use Pollora\Ajax\AjaxAccess;
+
+class NewsletterHandler
+{
+    #[Ajax('subscribe')]
+    public function subscribe(): void
+    {
+        wp_send_json_success(['message' => 'Subscribed!']);
+    }
+
+    #[Ajax('load_more', access: AjaxAccess::ALL)]
+    public function loadMore(): void
+    {
+        wp_send_json_success([/* ... */]);
+    }
+}
 ```
 
 ## Documentation

@@ -1,6 +1,6 @@
 # AJAX
 
-The `Ajax` facade simplifies the management of WordPress AJAX calls by providing a fluent, chainable API.
+A modern package for WordPress AJAX action management with a fluent API and secure defaults.
 
 ## Basic Usage
 
@@ -47,6 +47,20 @@ You can reference a controller instead of a closure:
 Ajax::listen('load_more_posts', [PostController::class, 'loadMore']);
 ```
 
+## AjaxAccess Enum
+
+The `AjaxAccess` enum defines audience targeting and can be used programmatically:
+
+```php
+use Pollora\Ajax\AjaxAccess;
+```
+
+| Value | WordPress Hook | Audience |
+|---|---|---|
+| `AjaxAccess::LOGGED` | `wp_ajax_{action}` | Logged-in users only (default) |
+| `AjaxAccess::ALL` | `wp_ajax_{action}` + `wp_ajax_nopriv_{action}` | Everyone |
+| `AjaxAccess::GUEST` | `wp_ajax_nopriv_{action}` | Guests only |
+
 ## Frontend JavaScript
 
 Send AJAX requests from JavaScript using the `ajaxurl` global provided by WordPress:
@@ -79,24 +93,12 @@ This outputs:
 <script type="text/javascript">var Pollora = { ajaxurl: "https://example.com/wp-admin/admin-ajax.php" };</script>
 ```
 
-## How It Works
-
-When you call `Ajax::listen()`, the package registers WordPress action hooks:
-
-| Method | WordPress Hook | Audience |
-|---|---|---|
-| Default | `wp_ajax_{action}` | Logged-in users only |
-| `forAllUsers()` | `wp_ajax_{action}` + `wp_ajax_nopriv_{action}` | Everyone |
-| `forLoggedUsers()` | `wp_ajax_{action}` | Logged-in users only |
-| `forGuestUsers()` | `wp_ajax_nopriv_{action}` | Guests only |
-
-The callback receives the standard WordPress AJAX context. Use `wp_send_json_success()` / `wp_send_json_error()` to send responses.
-
 ## Architecture
 
 This package follows Hexagonal Architecture (Ports & Adapters):
 
-- **Domain** — `AjaxAction` entity and business rules
+- **Domain** — `AjaxAction` entity, `AjaxAccess` enum, and business rules
 - **Port** — `AjaxActionRegistrarPort` interface
 - **Application** — `RegisterAjaxActionService` orchestration
 - **Adapter** — WordPress-specific implementations (`add_action()`)
+- **Factory** — `AjaxFactory` for service container integration
