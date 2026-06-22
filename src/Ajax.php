@@ -8,23 +8,24 @@ use Pollora\Ajax\Adapter\Out\WordPress\ScriptInjectionAdapter;
 use Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar;
 use Pollora\Ajax\Application\Service\RegisterAjaxActionService;
 use Pollora\Ajax\Domain\Model\AjaxAction;
+use Pollora\Ajax\Factory\AjaxFactory;
 
 /**
- * Facade for WordPress AJAX functionality.
+ * Static facade for WordPress AJAX functionality.
  *
  * Provides a clean interface for registering and handling WordPress AJAX actions
- * with improved type safety and modern PHP syntax.
+ * without requiring a service container (standalone usage).
  */
 class Ajax
 {
-    private static ?RegisterAjaxActionService $registerService = null;
+    private static ?AjaxFactory $factory = null;
 
     /**
      * Register an AJAX action handler.
      */
     public static function listen(string $action, callable|string $callback): AjaxAction
     {
-        return new AjaxAction($action, $callback, self::getRegisterService());
+        return self::getFactory()->listen($action, $callback);
     }
 
     /**
@@ -35,12 +36,14 @@ class Ajax
         (new ScriptInjectionAdapter)->registerAjaxUrlScript();
     }
 
-    private static function getRegisterService(): RegisterAjaxActionService
+    private static function getFactory(): AjaxFactory
     {
-        if (! self::$registerService instanceof RegisterAjaxActionService) {
-            self::$registerService = new RegisterAjaxActionService(new WordPressAjaxActionRegistrar);
+        if (! self::$factory instanceof AjaxFactory) {
+            self::$factory = new AjaxFactory(
+                new RegisterAjaxActionService(new WordPressAjaxActionRegistrar)
+            );
         }
 
-        return self::$registerService;
+        return self::$factory;
     }
 }
