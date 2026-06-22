@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar;
-use Pollora\Ajax\AjaxAction;
+use Pollora\Ajax\Domain\Model\AjaxAction;
 
 beforeEach(function (): void {
     $GLOBALS['wp_actions'] = [];

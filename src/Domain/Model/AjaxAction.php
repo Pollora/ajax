@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pollora\Ajax;
+namespace Pollora\Ajax\Domain\Model;
 
 use Pollora\Ajax\Application\Service\RegisterAjaxActionService;
 use Pollora\Ajax\Domain\Exception\InvalidAjaxActionException;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Pollora\Ajax\Factory;
 
-use Pollora\Ajax\AjaxAction;
 use Pollora\Ajax\Application\Service\RegisterAjaxActionService;
+use Pollora\Ajax\Domain\Model\AjaxAction;
 
 /**
  * Factory for creating AJAX action definitions with deferred registration.
