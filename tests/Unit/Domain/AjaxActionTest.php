@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use Pollora\Ajax\AjaxAction;
 use Pollora\Ajax\Application\Service\RegisterAjaxActionService;
 use Pollora\Ajax\Domain\Exception\InvalidAjaxActionException;
-use Pollora\Ajax\Domain\Model\AjaxAction;
 
 class DummyRegisterAjaxActionService extends RegisterAjaxActionService
 {

@@ -7,7 +7,6 @@ namespace Pollora\Ajax;
 use Pollora\Ajax\Adapter\Out\WordPress\ScriptInjectionAdapter;
 use Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar;
 use Pollora\Ajax\Application\Service\RegisterAjaxActionService;
-use Pollora\Ajax\Domain\Model\AjaxAction;
 use Pollora\Ajax\Factory\AjaxFactory;
 
 /**

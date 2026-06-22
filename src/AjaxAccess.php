@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pollora\Ajax;
 
-use Pollora\Ajax\Domain\Model\AjaxAction;
-
 /**
  * Enum defining the audience targeting for an AJAX action.
  *

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pollora\Ajax\Application\Service;
 
-use Pollora\Ajax\Domain\Model\AjaxAction;
+use Pollora\Ajax\AjaxAction;
 use Pollora\Ajax\Port\Out\AjaxActionRegistrarPort;
 
 /**

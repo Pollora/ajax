@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pollora\Ajax\Port\Out;
 
-use Pollora\Ajax\Domain\Model\AjaxAction;
+use Pollora\Ajax\AjaxAction;
 
 /**
  * Output port for registering AJAX actions in the underlying CMS.
