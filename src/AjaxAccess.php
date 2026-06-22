@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pollora\Ajax\Domain\Model;
+namespace Pollora\Ajax;
+
+use Pollora\Ajax\Domain\Model\AjaxAction;
 
 /**
  * Enum defining the audience targeting for an AJAX action.
@@ -12,6 +14,9 @@ namespace Pollora\Ajax\Domain\Model;
  *
  * Defaults to {@see self::LOGGED} (security-by-default): endpoints are not
  * exposed to unauthenticated visitors unless explicitly opted in.
+ *
+ * This is the **public stable API** — import `Pollora\Ajax\AjaxAccess`,
+ * not the internal domain path.
  *
  * @see AjaxAction
  */
