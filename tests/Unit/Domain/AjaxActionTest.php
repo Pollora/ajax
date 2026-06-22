@@ -19,10 +19,10 @@ class DummyRegisterAjaxActionService extends RegisterAjaxActionService
 }
 
 describe('AjaxAction', function (): void {
-    it('can be instantiated with valid parameters', function (): void {
+    it('defaults to logged-in users only for security', function (): void {
         $action = new AjaxAction('my_action', function (): void {});
         expect($action->getName())->toBe('my_action')
-            ->and($action->getUserType())->toBe(AjaxAction::BOTH_USERS)
+            ->and($action->getUserType())->toBe(AjaxAction::LOGGED_USERS)
             ->and(is_callable($action->getCallback()))->toBeTrue();
     });
 
@@ -41,12 +41,22 @@ describe('AjaxAction', function (): void {
     });
 
     it('isBothOrLoggedUsers and isBothOrGuestUsers logic works', function (): void {
+        // Default: logged only
         $action = new AjaxAction('my_action', function (): void {});
         expect($action->isBothOrLoggedUsers())->toBeTrue()
+            ->and($action->isBothOrGuestUsers())->toBeFalse();
+
+        // Explicit: all users
+        $action->forAllUsers();
+        expect($action->isBothOrLoggedUsers())->toBeTrue()
             ->and($action->isBothOrGuestUsers())->toBeTrue();
+
+        // Logged only
         $action->forLoggedUsers();
         expect($action->isBothOrLoggedUsers())->toBeTrue()
             ->and($action->isBothOrGuestUsers())->toBeFalse();
+
+        // Guest only
         $action->forGuestUsers();
         expect($action->isBothOrGuestUsers())->toBeTrue()
             ->and($action->isBothOrLoggedUsers())->toBeFalse();

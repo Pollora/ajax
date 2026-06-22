@@ -13,18 +13,18 @@ composer require pollora/ajax
 ```php
 use Pollora\Ajax\Ajax;
 
-// Register for all users
+// Logged-in users only (default — secure by design)
 Ajax::listen('my_action', function () {
     wp_send_json_success(['message' => 'It works!']);
 });
 
-// Logged-in users only
-Ajax::listen('my_action', function () {
+// All users (explicit opt-in required)
+Ajax::listen('public_action', function () {
     // ...
-})->forLoggedUsers();
+})->forAllUsers();
 
 // Guest users only
-Ajax::listen('my_action', function () {
+Ajax::listen('guest_action', function () {
     // ...
 })->forGuestUsers();
 ```

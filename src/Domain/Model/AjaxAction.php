@@ -28,7 +28,7 @@ class AjaxAction
      */
     public const GUEST_USERS = 'guest';
 
-    private string $userType = self::BOTH_USERS;
+    private string $userType = self::LOGGED_USERS;
 
     /**
      * @param  string  $name  The action name.
@@ -86,7 +86,20 @@ class AjaxAction
     }
 
     /**
-     * Restrict the action to logged-in users only.
+     * Make the action available to all users (logged-in and guests).
+     * Must be called explicitly — the default is logged-in users only.
+     *
+     * @return $this
+     */
+    public function forAllUsers(): static
+    {
+        $this->setUserType(self::BOTH_USERS);
+
+        return $this;
+    }
+
+    /**
+     * Restrict the action to logged-in users only (this is the default).
      *
      * @return $this
      */
