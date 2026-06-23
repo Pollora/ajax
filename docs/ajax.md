@@ -52,7 +52,7 @@ Ajax::listen('load_more_posts', [PostController::class, 'loadMore']);
 The `AjaxAccess` enum defines audience targeting and can be used programmatically:
 
 ```php
-use Pollora\Ajax\AjaxAccess;
+use Pollora\Ajax\Domain\Model\AjaxAccess;
 ```
 
 | Value | WordPress Hook | Audience |

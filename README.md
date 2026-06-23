@@ -35,7 +35,7 @@ When used inside Pollora, you can also use the `#[Ajax]` PHP attribute for decla
 
 ```php
 use Pollora\Attributes\Ajax;
-use Pollora\Ajax\AjaxAccess;
+use Pollora\Ajax\Domain\Model\AjaxAccess;
 
 class NewsletterHandler
 {
