@@ -2,7 +2,7 @@
     "name": "pollora/ajax",
     "description": "A modern PHP package for WordPress AJAX action management with fluent API",
     "type": "library",
-    "license": "GPL-2.0-or-later",
+    "license": "MIT",
     "authors": [
         {
             "name": "Amphibee",
