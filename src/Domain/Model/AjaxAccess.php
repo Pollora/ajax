@@ -34,6 +34,7 @@ enum AjaxAccess: string
             self::ALL => $action->forAllUsers(),
         };
     }
+
     /**
      * Logged-in users only — registers `wp_ajax_{action}`.
      * This is the default when no access is specified.
