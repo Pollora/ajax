@@ -47,6 +47,17 @@ class Ajax
     }
 
     /**
+     * The nonce a request must carry for an action that verifies one (`->requireNonce()`), to send in the
+     * `_ajax_nonce` request field.
+     *
+     * @param  string  $action  The nonce action: the AJAX action name, or what was given to `requireNonce()`.
+     */
+    public static function nonce(string $action): string
+    {
+        return wp_create_nonce($action);
+    }
+
+    /**
      * Inject the AJAX URL as a JavaScript global in the HTML `<head>`.
      *
      * Hooks into `wp_head` to output `Pollora.ajaxurl` for frontend use.
