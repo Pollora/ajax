@@ -1,4 +1,6 @@
 {
     "version": 1,
-    "surface": []
+    "surface": {
+        "hook:pollora/ajax/nonce_by_default": "hook"
+    }
 }

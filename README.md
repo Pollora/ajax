@@ -45,6 +45,7 @@ Ajax::listen('guest_action', fn () => wp_send_json_success())->forGuestUsers();
 - **`Ajax::listen($action, $callback)`** returns a fluent `AjaxAction`; the hooks are registered once the chain completes.
 - **Secure default**: logged-in users only. `forAllUsers()`, `forGuestUsers()` and `forLoggedUsers()` change the audience.
 - **`AjaxAccess` enum**: `LOGGED`, `GUEST` and `ALL`, for choosing the audience programmatically.
+- **Nonce protection**: `->requireNonce()` verifies a nonce before the callback runs; see [Protect an action with a nonce](#protect-an-action-with-a-nonce).
 - **`Ajax::injectScripts()`** prints `var Pollora = { ajaxurl: "…/admin-ajax.php" };` in `wp_head`, for front-end requests.
 - **Hexagonal core**: `RegisterAjaxActionService` works against an `AjaxActionRegistrarPort`; the WordPress registrar is one adapter.
 
@@ -71,6 +72,36 @@ class NewsletterHandler
     }
 }
 ```
+
+## Protect an action with a nonce
+
+An AJAX request carries the visitor's cookies, so a page of another site can make a logged-in visitor's browser send it. A nonce, a token WordPress creates for a user and an action, is what tells the request your own page sent from one it did not.
+
+```php
+// The page creates the nonce and sends it in the `_ajax_nonce` field (or `_wpnonce`).
+$nonce = Ajax::nonce('save_note');
+
+// The action refuses a request without a valid one: 403, and the callback does not run.
+Ajax::listen('save_note', $callback)->requireNonce();
+
+// Another nonce action than the AJAX action name, when a form already has one.
+Ajax::listen('save_note', $callback)->requireNonce('notes_form');
+
+// No nonce on purpose (a public beacon, a webhook that signs its own requests).
+Ajax::listen('track', $callback)->forGuestUsers()->withoutNonce();
+```
+
+With the Pollora framework, the `#[Ajax]` attribute says the same: `#[Ajax('save_note', nonce: true)]`, `nonce: 'notes_form'` or `nonce: false`.
+
+A refused request receives `{"success": false, "data": {"code": "pollora_ajax_invalid_nonce", "message": "Invalid or expired security token."}}` with a 403 status.
+
+**An action that does not choose** still runs without a check in the 1.x versions, and WordPress is told (`_doing_it_wrong()`, visible with `WP_DEBUG`, skipped while an AJAX request is answered). The next major version verifies a nonce by default. To get that behaviour now, on every action that did not choose:
+
+```php
+add_filter('pollora/ajax/nonce_by_default', '__return_true');
+```
+
+A nonce of a guest is tied to no user and a cached page can serve an old one: prefer a different protection for an action open to guests, and say `withoutNonce()` when you do.
 
 ## Documentation
 

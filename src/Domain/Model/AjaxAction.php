@@ -44,6 +44,10 @@ class AjaxAction
      */
     private string $userType = self::LOGGED_USERS;
 
+    private NoncePolicy $noncePolicy = NoncePolicy::Undecided;
+
+    private ?string $nonceAction = null;
+
     /**
      * Create a new AJAX action definition.
      *
@@ -141,6 +145,54 @@ class AjaxAction
         $this->setUserType(self::GUEST_USERS);
 
         return $this;
+    }
+
+    /**
+     * Verify a nonce before the callback runs: a request without a valid one gets a 403 and the callback does not run.
+     *
+     * The nonce action is the name of the AJAX action unless another one is given; the nonce travels in the
+     * `_ajax_nonce` (or `_wpnonce`) request field, as `check_ajax_referer()` reads it. Create it with
+     * `Ajax::nonce($action)`.
+     *
+     * @param  string|null  $nonceAction  The nonce action to verify, the AJAX action name when null.
+     * @return $this
+     */
+    public function requireNonce(?string $nonceAction = null): static
+    {
+        $this->noncePolicy = NoncePolicy::Verify;
+        $this->nonceAction = $nonceAction;
+
+        return $this;
+    }
+
+    /**
+     * Say, on purpose, that no nonce protects this action (a public beacon, a webhook that signs its own requests).
+     * Must be called explicitly: an action that never chose is reported by the registrar.
+     *
+     * @return $this
+     */
+    public function withoutNonce(): static
+    {
+        $this->noncePolicy = NoncePolicy::Disabled;
+        $this->nonceAction = null;
+
+        return $this;
+    }
+
+    /**
+     * What the action says about its nonce.
+     */
+    public function getNoncePolicy(): NoncePolicy
+    {
+        return $this->noncePolicy;
+    }
+
+    /**
+     * The nonce action a verified request must carry a nonce for.
+     */
+    public function getNonceAction(): string
+    {
+        return $this->nonceAction ?? $this->name;
     }
 
     /**
