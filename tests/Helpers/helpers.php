@@ -76,3 +76,19 @@ if (! function_exists('wp_create_nonce')) {
         return 'nonce-for-'.$action;
     }
 }
+
+if (! function_exists('is_user_logged_in')) {
+    function is_user_logged_in(): bool
+    {
+        return (bool) ($GLOBALS['wp_user_logged_in'] ?? false);
+    }
+}
+
+if (! function_exists('current_user_can')) {
+    function current_user_can(string $capability, mixed ...$args): bool
+    {
+        $GLOBALS['wp_capability_checks'][] = $capability;
+
+        return in_array($capability, $GLOBALS['wp_user_caps'] ?? [], true);
+    }
+}
