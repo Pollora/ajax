@@ -12,7 +12,7 @@ use Pollora\Ajax\Port\Out\AjaxActionRegistrarPort;
 /**
  * Translates an {@see AjaxAction} into the appropriate `wp_ajax_*`
  * and/or `wp_ajax_nopriv_*` hook registrations depending on the
- * action's user type, and applies what the action says about its nonce.
+ * action's user type, and applies what the action says about its nonce and the capability it requires.
  */
 class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 {
@@ -25,6 +25,16 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
      * Error code of the JSON response a request without a valid nonce receives.
      */
     public const INVALID_NONCE_CODE = 'pollora_ajax_invalid_nonce';
+
+    /**
+     * Error code of the JSON response a logged-in user who lacks the required capability receives.
+     */
+    public const FORBIDDEN_CODE = 'pollora_ajax_forbidden';
+
+    /**
+     * Error code of the JSON response a guest receives from an action that requires a capability.
+     */
+    public const UNAUTHENTICATED_CODE = 'pollora_ajax_unauthenticated';
 
     /**
      * Registers `wp_ajax_{name}` for logged-in users and/or
@@ -40,14 +50,27 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 
         if ($action->isBothOrGuestUsers()) {
             add_action('wp_ajax_nopriv_'.$action->getName(), $callback);
+
+            if ($action->getCapability() !== null) {
+                $this->reportCapabilityForGuests($action);
+            }
         }
     }
 
     /**
-     * The callback to hook: the action's own, wrapped in a nonce check when the action verifies one.
+     * The callback to hook: the action's own, wrapped in the checks the action asks for. The nonce is checked
+     * first (it tells where the request comes from), then the capability (what the user may do), then the
+     * callback runs.
      */
     private function protect(AjaxAction $action): mixed
     {
+        $callback = $action->getCallback();
+        $capability = $action->getCapability();
+
+        if ($capability !== null) {
+            $callback = $this->authorized($callback, $capability);
+        }
+
         $policy = $action->getNoncePolicy();
 
         if ($policy === NoncePolicy::Undecided) {
@@ -55,12 +78,10 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
                 $policy = NoncePolicy::Verify;
             } else {
                 $this->reportUndecided($action);
-
-                return $action->getCallback();
             }
         }
 
-        return $policy === NoncePolicy::Verify ? $this->verified($action) : $action->getCallback();
+        return $policy === NoncePolicy::Verify ? $this->verified($action, $callback) : $callback;
     }
 
     private function verifiesByDefault(AjaxAction $action): bool
@@ -68,9 +89,11 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
         return (bool) apply_filters(self::NONCE_BY_DEFAULT_FILTER, false, $action->getName());
     }
 
-    private function verified(AjaxAction $action): Closure
+    /**
+     * The callback wrapped in a nonce check: a request without a valid nonce gets a 403 and $callback does not run.
+     */
+    private function verified(AjaxAction $action, mixed $callback): Closure
     {
-        $callback = $action->getCallback();
         $nonceAction = $action->getNonceAction();
 
         return static function (mixed ...$arguments) use ($callback, $nonceAction): mixed {
@@ -85,6 +108,56 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 
             return call_user_func_array($callback, $arguments);
         };
+    }
+
+    /**
+     * The callback wrapped in a capability check: a guest gets a 401 and a logged-in user without the capability
+     * a 403, and $callback does not run.
+     */
+    private function authorized(mixed $callback, string $capability): Closure
+    {
+        return static function (mixed ...$arguments) use ($callback, $capability): mixed {
+            if (! is_user_logged_in()) {
+                wp_send_json_error([
+                    'code' => self::UNAUTHENTICATED_CODE,
+                    'message' => 'You must be logged in to do this.',
+                ], 401);
+
+                return null;
+            }
+
+            if (! current_user_can($capability)) {
+                wp_send_json_error([
+                    'code' => self::FORBIDDEN_CODE,
+                    'message' => 'You are not allowed to do this.',
+                ], 403);
+
+                return null;
+            }
+
+            return call_user_func_array($callback, $arguments);
+        };
+    }
+
+    /**
+     * Tells the developer that an action open to guests requires a capability: a guest is not logged in, so the
+     * guest side always answers 401. Skipped during an AJAX request, like the nonce notice.
+     */
+    private function reportCapabilityForGuests(AjaxAction $action): void
+    {
+        if (wp_doing_ajax()) {
+            return;
+        }
+
+        _doing_it_wrong(
+            'Ajax::listen("'.$action->getName().'")',
+            sprintf(
+                'The AJAX action "%1$s" requires the "%2$s" capability but is open to guests. A guest is not logged in, so guests always receive a 401 from it. Restrict it to logged-in users (->forLoggedUsers()), or drop ->requireCapability() when guests must be served.',
+                $action->getName(),
+                $action->getCapability(),
+            ),
+            '1.3.0',
+        );
     }
 
     /**

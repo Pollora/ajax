@@ -48,6 +48,8 @@ class AjaxAction
 
     private ?string $nonceAction = null;
 
+    private ?string $capability = null;
+
     /**
      * Create a new AJAX action definition.
      *
@@ -193,6 +195,39 @@ class AjaxAction
     public function getNonceAction(): string
     {
         return $this->nonceAction ?? $this->name;
+    }
+
+    /**
+     * Require a capability of the user before the callback runs: a request from a user who does not have it gets a
+     * 403 and the callback does not run. A nonce proves where the request comes from, not that the user may do what
+     * it asks; this is that second check, made after the nonce one.
+     *
+     * The capability is a WordPress one (`edit_posts`, `manage_options`, a custom one), read with `current_user_can()`.
+     * A capability only makes sense for a logged-in user: on the guest side of an action open to guests the request
+     * is answered with a 401 and the registrar tells the developer.
+     *
+     * @param  string  $capability  The capability the current user must have.
+     * @return $this
+     *
+     * @throws InvalidAjaxActionException If the capability is empty.
+     */
+    public function requireCapability(string $capability): static
+    {
+        if (trim($capability) === '') {
+            throw new InvalidAjaxActionException('The capability must not be empty.');
+        }
+
+        $this->capability = $capability;
+
+        return $this;
+    }
+
+    /**
+     * The capability a user must have, null when the action requires none.
+     */
+    public function getCapability(): ?string
+    {
+        return $this->capability;
     }
 
     /**

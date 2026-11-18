@@ -46,6 +46,7 @@ Ajax::listen('guest_action', fn () => wp_send_json_success())->forGuestUsers();
 - **Secure default**: logged-in users only. `forAllUsers()`, `forGuestUsers()` and `forLoggedUsers()` change the audience.
 - **`AjaxAccess` enum**: `LOGGED`, `GUEST` and `ALL`, for choosing the audience programmatically.
 - **Nonce protection**: `->requireNonce()` verifies a nonce before the callback runs; see [Protect an action with a nonce](#protect-an-action-with-a-nonce).
+- **Capability check**: `->requireCapability('edit_posts')` refuses a user who may not do what the request asks; see [Require a capability](#require-a-capability).
 - **`Ajax::injectScripts()`** prints `var Pollora = { ajaxurl: "…/admin-ajax.php" };` in `wp_head`, for front-end requests.
 - **Hexagonal core**: `RegisterAjaxActionService` works against an `AjaxActionRegistrarPort`; the WordPress registrar is one adapter.
 
@@ -102,6 +103,23 @@ add_filter('pollora/ajax/nonce_by_default', '__return_true');
 ```
 
 A nonce of a guest is tied to no user and a cached page can serve an old one: prefer a different protection for an action open to guests, and say `withoutNonce()` when you do.
+
+## Require a capability
+
+A nonce proves where a request comes from, not that the user may do what it asks. Without a capability check, any logged-in user (a subscriber, for instance) who has a valid nonce can run the action. Say who may:
+
+```php
+// The action refuses a logged-in user who lacks the capability: 403, and the callback does not run.
+Ajax::listen('save_note', $callback)->requireNonce()->requireCapability('edit_posts');
+```
+
+With the Pollora framework: `#[Ajax('save_note', nonce: true, capability: 'edit_posts')]`.
+
+The capability is checked with `current_user_can()`, after the nonce and before the callback. A user without it receives `{"success": false, "data": {"code": "pollora_ajax_forbidden", "message": "You are not allowed to do this."}}` with a 403 status. An action that does not call `requireCapability()` behaves as before.
+
+**A capability and guests do not go together**: a guest is not logged in, so it has no capability. On the guest side of an action open to guests (`forGuestUsers()`, `forAllUsers()`), the request is refused with a 401 (`pollora_ajax_unauthenticated`) and WordPress is told (`_doing_it_wrong()`, visible with `WP_DEBUG`, skipped while an AJAX request is answered). Restrict the action to logged-in users, or drop the capability.
+
+An action that requires a capability is still told to choose its nonce policy (`requireNonce()` or `withoutNonce()`).
 
 ## Documentation
 
