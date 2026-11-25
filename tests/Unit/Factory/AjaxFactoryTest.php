@@ -8,18 +8,23 @@ use Pollora\Ajax\Domain\Model\AjaxAction;
 use Pollora\Ajax\Factory\AjaxFactory;
 use Pollora\Ajax\Port\Out\AjaxActionRegistrarPort;
 
-function ajaxFactoryRecorder(): object
+/**
+ * Registrar double that keeps the actions it receives.
+ */
+final class AjaxFactoryRecorder implements AjaxActionRegistrarPort
 {
-    return new class implements AjaxActionRegistrarPort
-    {
-        /** @var list<AjaxAction> */
-        public array $registered = [];
+    /** @var list<AjaxAction> */
+    public array $registered = [];
 
-        public function register(AjaxAction $action): void
-        {
-            $this->registered[] = $action;
-        }
-    };
+    public function register(AjaxAction $action): void
+    {
+        $this->registered[] = $action;
+    }
+}
+
+function ajaxFactoryRecorder(): AjaxFactoryRecorder
+{
+    return new AjaxFactoryRecorder;
 }
 
 describe('AjaxFactory', function (): void {

@@ -8,6 +8,7 @@ use Pollora\Ajax\Domain\Model\AjaxAction;
 
 class DummyRegisterAjaxActionService extends RegisterAjaxActionService
 {
+    /** @var list<AjaxAction> */
     public array $calls = [];
 
     public function __construct() {}
