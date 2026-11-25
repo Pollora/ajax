@@ -6,7 +6,7 @@ use Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar;
 use Pollora\Ajax\Domain\Model\AjaxAction;
 
 beforeEach(function (): void {
-    $GLOBALS['wp_actions'] = [];
+    WpMock::$actions = [];
 });
 
 describe('WordPressAjaxActionRegistrar', function (): void {
@@ -15,7 +15,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = new AjaxAction('my_action', function (): void {});
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->not->toContain('wp_ajax_nopriv_my_action');
     });
@@ -25,7 +25,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forAllUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->toContain('wp_ajax_nopriv_my_action');
     });
@@ -35,7 +35,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forLoggedUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->not->toContain('wp_ajax_nopriv_my_action');
     });
@@ -45,7 +45,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forGuestUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->not->toContain('wp_ajax_my_action')
             ->and($hooks)->toContain('wp_ajax_nopriv_my_action');
     });
