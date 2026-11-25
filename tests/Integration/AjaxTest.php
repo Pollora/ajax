@@ -82,7 +82,10 @@ function dispatchAjax(string $action, ?int $userId = null, ?string $nonce = null
 function ajaxUser(string $role): int
 {
     $id = wp_insert_user(['user_login' => 'ajax_'.$role.'_'.wp_generate_password(6, false), 'user_pass' => wp_generate_password(), 'role' => $role]);
-    expect($id)->toBeInt();
+    if ($id instanceof WP_Error) {
+        throw new RuntimeException('Could not create the test user: '.$id->get_error_message());
+    }
+
     $GLOBALS['pollora_wpint_users'][] = $id;
 
     return $id;
