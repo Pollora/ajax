@@ -3,10 +3,11 @@
 declare(strict_types=1);
 
 use Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar;
+use Pollora\Ajax\Domain\Exception\InvalidAjaxActionException;
 use Pollora\Ajax\Domain\Model\AjaxAction;
 
 beforeEach(function (): void {
-    $GLOBALS['wp_actions'] = [];
+    WpMock::$actions = [];
 });
 
 describe('WordPressAjaxActionRegistrar', function (): void {
@@ -15,7 +16,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = new AjaxAction('my_action', function (): void {});
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->not->toContain('wp_ajax_nopriv_my_action');
     });
@@ -25,7 +26,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forAllUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->toContain('wp_ajax_nopriv_my_action');
     });
@@ -35,7 +36,7 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forLoggedUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->toContain('wp_ajax_my_action')
             ->and($hooks)->not->toContain('wp_ajax_nopriv_my_action');
     });
@@ -45,8 +46,27 @@ describe('WordPressAjaxActionRegistrar', function (): void {
         $action = (new AjaxAction('my_action', function (): void {}))->forGuestUsers();
         $registrar->register($action);
 
-        $hooks = array_column($GLOBALS['wp_actions'], 'hook');
+        $hooks = array_column(WpMock::$actions, 'hook');
         expect($hooks)->not->toContain('wp_ajax_my_action')
             ->and($hooks)->toContain('wp_ajax_nopriv_my_action');
+    });
+
+    it('resolves a callback that is not callable yet when the hook runs', function (): void {
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('late', 'pollora_ajax_defined_late'))->withoutNonce());
+
+        if (! function_exists('pollora_ajax_defined_late')) {
+            function pollora_ajax_defined_late(string $word): string
+            {
+                return strtoupper($word);
+            }
+        }
+
+        expect(WpMock::hooked('wp_ajax_late')['callback']('ok'))->toBe('OK');
+    });
+
+    it('fails with a named exception when a late callback never becomes callable', function (): void {
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('never', 'pollora_ajax_never_defined'))->withoutNonce());
+
+        expect(fn (): mixed => WpMock::hooked('wp_ajax_never')['callback']())->toThrow(InvalidAjaxActionException::class);
     });
 });
