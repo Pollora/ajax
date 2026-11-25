@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pollora\Ajax\Adapter\Out\WordPress;
 
 use Closure;
+use Pollora\Ajax\Domain\Exception\InvalidAjaxActionException;
 use Pollora\Ajax\Domain\Model\AjaxAction;
 use Pollora\Ajax\Domain\Model\NoncePolicy;
 use Pollora\Ajax\Port\Out\AjaxActionRegistrarPort;
@@ -62,9 +63,9 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
      * first (it tells where the request comes from), then the capability (what the user may do), then the
      * callback runs.
      */
-    private function protect(AjaxAction $action): mixed
+    private function protect(AjaxAction $action): callable
     {
-        $callback = $action->getCallback();
+        $callback = $this->resolvable($action->getCallback());
         $capability = $action->getCapability();
 
         if ($capability !== null) {
@@ -84,6 +85,36 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
         return $policy === NoncePolicy::Verify ? $this->verified($action, $callback) : $callback;
     }
 
+    /**
+     * The callback as something WordPress can hook. A callback that is not callable yet (the name of a function
+     * the file defines further down) is resolved when the hook runs, as it always was; if it still is not
+     * callable then, the request fails with a named exception rather than a bare TypeError.
+     */
+    private function resolvable(mixed $callback): callable
+    {
+        if (is_callable($callback)) {
+            return $callback;
+        }
+
+        return static fn (mixed ...$arguments): mixed => self::callLate($callback, $arguments);
+    }
+
+    /**
+     * Runs a callback that was not callable when the action was registered.
+     *
+     * @param  array<int|string, mixed>  $arguments
+     *
+     * @throws InvalidAjaxActionException When it is still not callable.
+     */
+    private static function callLate(mixed $callback, array $arguments): mixed
+    {
+        if (! is_callable($callback)) {
+            throw new InvalidAjaxActionException('The callback of the AJAX action is not callable.');
+        }
+
+        return call_user_func_array($callback, $arguments);
+    }
+
     private function verifiesByDefault(AjaxAction $action): bool
     {
         return (bool) apply_filters(self::NONCE_BY_DEFAULT_FILTER, false, $action->getName());
@@ -92,7 +123,7 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
     /**
      * The callback wrapped in a nonce check: a request without a valid nonce gets a 403 and $callback does not run.
      */
-    private function verified(AjaxAction $action, mixed $callback): Closure
+    private function verified(AjaxAction $action, callable $callback): Closure
     {
         $nonceAction = $action->getNonceAction();
 
@@ -114,7 +145,7 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
      * The callback wrapped in a capability check: a guest gets a 401 and a logged-in user without the capability
      * a 403, and $callback does not run.
      */
-    private function authorized(mixed $callback, string $capability): Closure
+    private function authorized(callable $callback, string $capability): Closure
     {
         return static function (mixed ...$arguments) use ($callback, $capability): mixed {
             if (! is_user_logged_in()) {
