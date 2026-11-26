@@ -43,7 +43,7 @@
         ],
         "test:coverage": "pest --coverage",
         "test:unit": "pest --testsuite=Unit",
-        "test:integration": "pest --test-directory=tests/Integration -c phpunit.integration.xml",
+        "test:integration": "@php -d display_errors=stderr vendor/bin/pest --test-directory=tests/Integration -c phpunit.integration.xml",
         "phpstan": "phpstan analyse src tests --level=max",
         "phpstan:ci": "phpstan analyse src tests --level=max --no-progress",
         "lint": "pint",
