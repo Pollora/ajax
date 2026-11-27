@@ -187,33 +187,49 @@ it('answers 401 to a guest and 403 to a user without the capability, and runs fo
         ->and($ran)->toBe(1);
 });
 
-it('tells the developer, once registered, that an action never chose how it is protected', function (): void {
-    Ajax::listen('pollora_wpint_undecided', fn () => null);
+it('verifies a nonce for an action that never chose how it is protected', function (): void {
+    $ran = 0;
+    Ajax::listen('pollora_wpint_default', function () use (&$ran): void {
+        $ran++;
+        wp_send_json_success('done');
+    });
     gc_collect_cycles();
+    $user = ajaxUser('subscriber');
 
-    expect(AjaxWpint::$notices)->toHaveCount(0);
+    $refused = dispatchAjax('pollora_wpint_default', $user);
 
-    // Outside an AJAX request the notice is reported; it is the registration that matters here.
+    expect($ran)->toBe(0)
+        ->and(ajaxErrorCode($refused))->toBe(WordPressAjaxActionRegistrar::INVALID_NONCE_CODE)
+        ->and($refused['status'])->toBe(403);
+
+    wp_set_current_user($user);
+    $accepted = dispatchAjax('pollora_wpint_default', $user, Ajax::nonce('pollora_wpint_default'));
+
+    expect($ran)->toBe(1)
+        ->and($accepted['body'])->toBe(['success' => true, 'data' => 'done']);
+});
+
+it('tells the developer, once registered, that an action open to guests never chose', function (): void {
     remove_all_filters('wp_doing_ajax');
-    Ajax::listen('pollora_wpint_undecided_page', fn () => null);
+    Ajax::listen('pollora_wpint_undecided_logged', fn () => null);
+    Ajax::listen('pollora_wpint_undecided_guest', fn () => null)->forGuestUsers();
     gc_collect_cycles();
 
     expect(AjaxWpint::$notices)->toHaveCount(1)
-        ->and(AjaxWpint::$notices[0])->toContain('pollora_wpint_undecided_page');
+        ->and(AjaxWpint::$notices[0])->toContain('pollora_wpint_undecided_guest');
 });
 
-it('verifies a nonce for every undecided action when the filter says so', function (): void {
-    add_filter(WordPressAjaxActionRegistrar::NONCE_BY_DEFAULT_FILTER, '__return_true');
+it('runs an undecided action without a check when the filter returns false', function (): void {
+    add_filter(WordPressAjaxActionRegistrar::NONCE_BY_DEFAULT_FILTER, '__return_false');
     $ran = 0;
-    Ajax::listen('pollora_wpint_default', function () use (&$ran): void {
+    Ajax::listen('pollora_wpint_opted_out', function () use (&$ran): void {
         $ran++;
     });
     gc_collect_cycles();
 
-    $answer = dispatchAjax('pollora_wpint_default', ajaxUser('subscriber'));
+    dispatchAjax('pollora_wpint_opted_out', ajaxUser('subscriber'));
 
-    expect($ran)->toBe(0)
-        ->and(ajaxErrorCode($answer))->toBe(WordPressAjaxActionRegistrar::INVALID_NONCE_CODE);
+    expect($ran)->toBe(1);
 });
 
 it('prints the admin-ajax.php URL of the site in the head of the page', function (): void {

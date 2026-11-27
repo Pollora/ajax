@@ -14,14 +14,14 @@ Ajax::listen('my_action', function () {
 });
 ```
 
-By default, this registers `wp_ajax_my_action` **only** — the handler is restricted to **logged-in users** for security. Unauthenticated users cannot reach it.
+By default, this registers `wp_ajax_my_action` **only** — the handler is restricted to **logged-in users** for security. Unauthenticated users cannot reach it. It also **verifies a nonce**: a request without one made for `my_action` gets a 403.
 
 ## Security Model
 
 AJAX endpoints are **secure by default**: `listen()` only registers the `wp_ajax_*` hook (authenticated users). You must explicitly opt in to expose an endpoint to unauthenticated visitors.
 
 ```php
-// Default — logged-in users only (wp_ajax_*)
+// Default — logged-in users only (wp_ajax_*), nonce verified
 Ajax::listen('my_action', function () {
     wp_send_json_success(['user' => wp_get_current_user()->display_name]);
 });
@@ -29,15 +29,27 @@ Ajax::listen('my_action', function () {
 // Explicit — all users, logged-in AND guests (wp_ajax_* + wp_ajax_nopriv_*)
 Ajax::listen('public_action', function () {
     wp_send_json_success(['message' => 'Hello everyone!']);
-})->forAllUsers();
+})->forAllUsers()->withoutNonce();
 
 // Guest users only (wp_ajax_nopriv_*)
 Ajax::listen('guest_action', function () {
     wp_send_json_success(['message' => 'Hello guest!']);
-})->forGuestUsers();
+})->forGuestUsers()->withoutNonce();
 ```
 
 > **Why?** Exposing `wp_ajax_nopriv_*` allows any unauthenticated visitor to call the endpoint. This should be a conscious decision, not an implicit default.
+
+### Nonce
+
+A nonce is verified before the handler runs, for every audience, unless the action says `withoutNonce()`. The nonce action is the AJAX action name, or what `requireNonce('...')` names. The request carries it in `_ajax_nonce` or `_wpnonce`. A refused request gets a 403 with the code `pollora_ajax_invalid_nonce` and a `hint` that names the expected nonce.
+
+For actions open to guests, choose: a guest's nonce is tied to no user, and a cached page can serve an expired one. `withoutNonce()` removes the check for logged-in users as well.
+
+`add_filter('pollora/ajax/nonce_by_default', '__return_false')` turns the default off for the actions that did not choose, to migrate from 1.x. See [the README](../README.md#protect-an-action-with-a-nonce).
+
+### Capability
+
+`requireCapability('edit_posts')` is optional and has no default. Without it, any logged-in user with a valid nonce runs the action. See [the README](../README.md#require-a-capability).
 
 ## Using a Controller Method
 
@@ -63,12 +75,20 @@ use Pollora\Ajax\Domain\Model\AjaxAccess;
 
 ## Frontend JavaScript
 
-Send AJAX requests from JavaScript using the `ajaxurl` global provided by WordPress:
+Give the page the nonce of the action, then send it with the request. `ajaxurl` is a global of the WordPress admin; on the front end, use `Ajax::injectScripts()` (see below).
+
+```php
+use Pollora\Ajax\Ajax;
+
+add_action('wp_enqueue_scripts', function (): void {
+    wp_add_inline_script('my-script', 'var myApp = '.wp_json_encode(['nonce' => Ajax::nonce('my_action')]).';', 'before');
+});
+```
 
 ```javascript
 jQuery.post(ajaxurl, {
     action: 'my_action',
-    _wpnonce: myApp.nonce,
+    _ajax_nonce: myApp.nonce,
     data: 'some data'
 }, function (response) {
     if (response.success) {

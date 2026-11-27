@@ -87,8 +87,7 @@ describe('an action that requires a capability', function (): void {
         expect(WpMock::hooked('wp_ajax_save_note')['callback']())->toBe('done');
     });
 
-    it('is protected as well when the nonce is verified by default through the filter', function (): void {
-        WpMock::$filters['pollora/ajax/nonce_by_default'] = true;
+    it('is protected by the nonce verified by default as well', function (): void {
         WpMock::$nonceValid = false;
         (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', fn (): null => null))->requireCapability('edit_posts'));
 
@@ -96,13 +95,6 @@ describe('an action that requires a capability', function (): void {
 
         expect(WpMock::jsonErrorCode())->toBe('pollora_ajax_invalid_nonce')
             ->and(WpMock::$doingItWrong)->toBe([]);
-    });
-
-    it('still tells the developer when the nonce choice is missing', function (): void {
-        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', fn (): null => null))->requireCapability('edit_posts'));
-
-        expect(WpMock::$doingItWrong)->toHaveCount(1)
-            ->and(WpMock::$doingItWrong[0]['message'])->toContain('cross-site request forgery');
     });
 });
 
