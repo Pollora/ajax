@@ -208,6 +208,7 @@ describe('an action that never chose', function (): void {
             ->and(WpMock::hooked('wp_ajax_nopriv_save_note')['callback'])->toBe($callback)
             ->and(WpMock::$nonceChecks)->toBe([])
             ->and(WpMock::$doingItWrong)->toHaveCount(1)
+            ->and(WpMock::$doingItWrong[0]['function'])->toBe('Ajax::listen("save_note")')
             ->and(WpMock::$doingItWrong[0]['version'])->toBe('2.0.0')
             ->and(WpMock::$doingItWrong[0]['message'])->toBe(
                 'The AJAX action "save_note" runs without a nonce check: it chose no nonce policy and the "pollora/ajax/nonce_by_default" filter returned false. Declare ->requireNonce() (#[Ajax(\'save_note\', nonce: true)]), or ->withoutNonce() (nonce: false) when no nonce makes sense.'
