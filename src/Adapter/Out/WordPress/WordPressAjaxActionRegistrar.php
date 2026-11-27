@@ -173,7 +173,7 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
     private function nonceHint(AjaxAction $action): string
     {
         $hint = sprintf(
-            'Send a nonce for "%1$s" (Ajax::nonce(\'%1$s\')) in the _ajax_nonce or _wpnonce request field.',
+            'Send a nonce for "%1$s" (wp_create_nonce(\'%1$s\')) in the _ajax_nonce or _wpnonce request field.',
             $action->getNonceAction(),
         );
 

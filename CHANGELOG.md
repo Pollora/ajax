@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file. The format foll
 - **BREAKING**: a nonce is verified by default. An action that says neither `requireNonce()` nor `withoutNonce()` (`nonce: null` on `#[Ajax]`) now refuses a request without a valid nonce for the action name: 403, `pollora_ajax_invalid_nonce`, and the callback does not run. In 1.x it ran without a check. This applies to every audience, guests included. [#28](https://github.com/Pollora/ajax/issues/28)
 
   To migrate, for each action that did not choose:
-  1. When the request is sent by your own page, create the nonce with `Ajax::nonce('action_name')` and send it in the `_ajax_nonce` (or `_wpnonce`) field.
+  1. When the request is sent by your own page, create the nonce with `wp_create_nonce('action_name')` (standalone, `Ajax::nonce()` does the same; the Pollora facade has no `nonce()`) and send it in the `_ajax_nonce` (or `_wpnonce`) field.
   2. When no nonce makes sense (public read, cached page, beacon, signed webhook), declare `->withoutNonce()` or `#[Ajax(..., nonce: false)]`. Both exist since 1.2.0, so this can be done before upgrading. On an action open to everyone it also removes the check for logged-in users.
   3. If a form already has a nonce of another name, declare `->requireNonce('that_name')`.
 

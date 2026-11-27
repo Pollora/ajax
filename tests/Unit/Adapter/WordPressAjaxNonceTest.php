@@ -32,7 +32,7 @@ describe('an action that verifies a nonce', function (): void {
                 'data' => [
                     'code' => 'pollora_ajax_invalid_nonce',
                     'message' => 'Invalid or expired security token.',
-                    'hint' => 'Send a nonce for "save_note" (Ajax::nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field.',
+                    'hint' => 'Send a nonce for "save_note" (wp_create_nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field.',
                 ],
                 'status' => 403,
             ]]);
@@ -61,7 +61,7 @@ describe('an action that verifies a nonce', function (): void {
 
         expect(WpMock::$jsonErrors[0]['data'])->toHaveKey(
             'hint',
-            'Send a nonce for "notes_form" (Ajax::nonce(\'notes_form\')) in the _ajax_nonce or _wpnonce request field.',
+            'Send a nonce for "notes_form" (wp_create_nonce(\'notes_form\')) in the _ajax_nonce or _wpnonce request field.',
         );
     });
 
@@ -126,7 +126,7 @@ describe('an action that never chose', function (): void {
                 'data' => [
                     'code' => 'pollora_ajax_invalid_nonce',
                     'message' => 'Invalid or expired security token.',
-                    'hint' => 'Send a nonce for "save_note" (Ajax::nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field. This action chose no nonce policy, so pollora/ajax verifies one by default; declare ->withoutNonce() (nonce: false) when no nonce makes sense.',
+                    'hint' => 'Send a nonce for "save_note" (wp_create_nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field. This action chose no nonce policy, so pollora/ajax verifies one by default; declare ->withoutNonce() (nonce: false) when no nonce makes sense.',
                 ],
                 'status' => 403,
             ]]);
