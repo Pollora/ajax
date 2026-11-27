@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-27
+
 ### Changed
 
 - **BREAKING**: a nonce is verified by default. An action that says neither `requireNonce()` nor `withoutNonce()` (`nonce: null` on `#[Ajax]`) now refuses a request without a valid nonce for the action name: 403, `pollora_ajax_invalid_nonce`, and the callback does not run. In 1.x it ran without a check. This applies to every audience, guests included. [#28](https://github.com/Pollora/ajax/issues/28)
