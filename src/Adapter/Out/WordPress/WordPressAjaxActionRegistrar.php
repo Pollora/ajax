@@ -39,6 +39,12 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
     public const UNAUTHENTICATED_CODE = 'pollora_ajax_unauthenticated';
 
     /**
+     * @param  bool|null  $debug  Whether a refused request is told which nonce was expected; the `WP_DEBUG` constant
+     *                            decides when null.
+     */
+    public function __construct(private readonly ?bool $debug = null) {}
+
+    /**
      * Registers `wp_ajax_{name}` for logged-in users and/or
      * `wp_ajax_nopriv_{name}` for guests, based on the action's user type.
      */
@@ -135,21 +141,24 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 
     /**
      * The callback wrapped in a nonce check: a request without a valid nonce gets a 403 and $callback does not run.
-     * The answer carries a hint for the developer: the nonce that was expected and, for an action that did not
-     * choose, why one was asked.
+     * While debugging, the answer carries a hint for the developer: the nonce that was expected and, for an action
+     * that did not choose, why one was asked.
      */
     private function verified(AjaxAction $action, callable $callback): Closure
     {
         $nonceAction = $action->getNonceAction();
         $hint = $this->nonceHint($action);
+        $debug = $this->debug;
 
-        return static function (mixed ...$arguments) use ($callback, $nonceAction, $hint): mixed {
+        return static function (mixed ...$arguments) use ($callback, $nonceAction, $hint, $debug): mixed {
             if (! check_ajax_referer($nonceAction, false, false)) {
-                wp_send_json_error([
-                    'code' => self::INVALID_NONCE_CODE,
-                    'message' => 'Invalid or expired security token.',
-                    'hint' => $hint,
-                ], 403);
+                $error = ['code' => self::INVALID_NONCE_CODE, 'message' => 'Invalid or expired security token.'];
+
+                if ($debug ?? (defined('WP_DEBUG') && WP_DEBUG)) {
+                    $error['hint'] = $hint;
+                }
+
+                wp_send_json_error($error, 403);
 
                 return null;
             }

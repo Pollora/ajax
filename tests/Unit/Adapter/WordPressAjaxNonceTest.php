@@ -20,7 +20,7 @@ beforeEach(function (): void {
 describe('an action that verifies a nonce', function (): void {
     it('refuses a request without a valid nonce, with a 403 and a code to recognise it', function (): void {
         $ran = [];
-        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', function () use (&$ran): void {
+        (new WordPressAjaxActionRegistrar(debug: true))->register((new AjaxAction('save_note', function () use (&$ran): void {
             $ran[] = 'ran';
         }))->requireNonce());
 
@@ -55,7 +55,7 @@ describe('an action that verifies a nonce', function (): void {
     });
 
     it('names the nonce action it was given in the hint of the refusal', function (): void {
-        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', fn (): null => null))->requireNonce('notes_form'));
+        (new WordPressAjaxActionRegistrar(debug: true))->register((new AjaxAction('save_note', fn (): null => null))->requireNonce('notes_form'));
 
         WpMock::hooked('wp_ajax_save_note')['callback']();
 
@@ -114,7 +114,7 @@ describe('an action that turned the nonce off on purpose', function (): void {
 describe('an action that never chose', function (): void {
     it('refuses a request without a valid nonce, and says why a nonce was asked and how to opt out', function (): void {
         $ran = [];
-        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', function () use (&$ran): void {
+        (new WordPressAjaxActionRegistrar(debug: true))->register(new AjaxAction('save_note', function () use (&$ran): void {
             $ran[] = 'ran';
         }));
 
@@ -231,6 +231,46 @@ describe('an action that never chose', function (): void {
 
         expect(WpMock::$nonceChecks)->toHaveCount(1);
     });
+});
+
+describe('the hint of a refused request', function (): void {
+    it('is left out when debugging is off: the answer says nothing to a visitor about the nonce expected', function (): void {
+        (new WordPressAjaxActionRegistrar(debug: false))->register(new AjaxAction('save_note', fn (): null => null));
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$jsonErrors)->toBe([[
+            'data' => ['code' => 'pollora_ajax_invalid_nonce', 'message' => 'Invalid or expired security token.'],
+            'status' => 403,
+        ]]);
+    });
+
+    it('is left out when WP_DEBUG is not defined', function (): void {
+        expect(defined('WP_DEBUG'))->toBeFalse();
+
+        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$jsonErrors[0]['data'])->not->toHaveKey('hint');
+    });
+
+    it('follows the WP_DEBUG constant', function (bool $debug): void {
+        // A constant cannot be redefined: each value is tried in its own PHP process.
+        $script = sprintf(
+            'require %s; require %s; define("WP_DEBUG", %s);'
+            .'(new Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar)->register(new Pollora\Ajax\Domain\Model\AjaxAction("save_note", "strlen"));'
+            .'WpMock::hooked("wp_ajax_save_note")["callback"]();'
+            .'echo isset(WpMock::$jsonErrors[0]["data"]["hint"]) ? "hint" : "no hint";',
+            var_export(dirname(__DIR__, 3).'/vendor/autoload.php', true),
+            var_export(dirname(__DIR__, 2).'/Helpers/helpers.php', true),
+            var_export($debug, true),
+        );
+
+        $output = shell_exec(escapeshellarg(PHP_BINARY).' -d display_errors=stderr -d error_reporting=0 -r '.escapeshellarg($script));
+
+        expect($output)->toBe($debug ? 'hint' : 'no hint');
+    })->with(['on' => [true], 'off' => [false]]);
 });
 
 describe('the nonce a page sends', function (): void {

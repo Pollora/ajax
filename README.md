@@ -96,13 +96,13 @@ Ajax::listen('track', $callback)->forGuestUsers()->withoutNonce();
 
 With the Pollora framework, the `#[Ajax]` attribute says the same: `#[Ajax('save_note')]`, `nonce: 'notes_form'` or `nonce: false`.
 
-A refused request receives a 403 status and:
+A refused request receives a 403 status and, with `WP_DEBUG` on:
 
 ```json
 {"success": false, "data": {"code": "pollora_ajax_invalid_nonce", "message": "Invalid or expired security token.", "hint": "Send a nonce for \"save_note\" (Ajax::nonce('save_note')) in the _ajax_nonce or _wpnonce request field."}}
 ```
 
-`hint` is for the developer: it names the nonce that was expected and, for an action that did not choose, says that the check is the default one.
+`hint` is only sent when `WP_DEBUG` is on (in a Pollora project, `APP_DEBUG`). It is for the developer: it names the nonce that was expected and, for an action that did not choose, says that the check is the default one. In production the answer is `code` and `message` alone.
 
 ### Actions open to guests
 

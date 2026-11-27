@@ -23,7 +23,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
-- The 403 answer of a refused nonce has a `hint` field next to `code` and `message` (both unchanged): the nonce action expected, the request fields, and, for an action that did not choose, that the check is the default one.
+- When `WP_DEBUG` is on, the 403 answer of a refused nonce has a `hint` field next to `code` and `message` (both unchanged): the nonce action expected, the request fields, and, for an action that did not choose, that the check is the default one.
 
 The capability stays optional (`requireCapability()`): no capability is a sensible default for every action.
 

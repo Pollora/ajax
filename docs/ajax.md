@@ -41,7 +41,7 @@ Ajax::listen('guest_action', function () {
 
 ### Nonce
 
-A nonce is verified before the handler runs, for every audience, unless the action says `withoutNonce()`. The nonce action is the AJAX action name, or what `requireNonce('...')` names. The request carries it in `_ajax_nonce` or `_wpnonce`. A refused request gets a 403 with the code `pollora_ajax_invalid_nonce` and a `hint` that names the expected nonce.
+A nonce is verified before the handler runs, for every audience, unless the action says `withoutNonce()`. The nonce action is the AJAX action name, or what `requireNonce('...')` names. The request carries it in `_ajax_nonce` or `_wpnonce`. A refused request gets a 403 with the code `pollora_ajax_invalid_nonce`; when `WP_DEBUG` is on, a `hint` field also names the expected nonce.
 
 For actions open to guests, choose: a guest's nonce is tied to no user, and a cached page can serve an expired one. `withoutNonce()` removes the check for logged-in users as well.
 
