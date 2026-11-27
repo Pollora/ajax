@@ -151,6 +151,8 @@ class AjaxAction
 
     /**
      * Verify a nonce before the callback runs: a request without a valid one gets a 403 and the callback does not run.
+     * This is also what happens to an action that chooses nothing; say it to name another nonce action, or to keep
+     * the check whatever the `pollora/ajax/nonce_by_default` filter answers.
      *
      * The nonce action is the name of the AJAX action unless another one is given; the nonce travels in the
      * `_ajax_nonce` (or `_wpnonce`) request field, as `check_ajax_referer()` reads it. Create it with
@@ -169,7 +171,7 @@ class AjaxAction
 
     /**
      * Say, on purpose, that no nonce protects this action (a public beacon, a webhook that signs its own requests).
-     * Must be called explicitly: an action that never chose is reported by the registrar.
+     * Must be called explicitly: an action that never chose verifies a nonce.
      *
      * @return $this
      */

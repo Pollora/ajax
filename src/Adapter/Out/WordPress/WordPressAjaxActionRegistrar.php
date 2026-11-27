@@ -18,7 +18,8 @@ use Pollora\Ajax\Port\Out\AjaxActionRegistrarPort;
 class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 {
     /**
-     * Filter: return `true` to verify a nonce on every action that did not choose, as the next major version will.
+     * Filter: return `false` to run the actions that did not choose without a nonce check, as 1.x did. Only a strict
+     * `false` does: any other answer keeps the check.
      */
     public const NONCE_BY_DEFAULT_FILTER = 'pollora/ajax/nonce_by_default';
 
@@ -36,6 +37,12 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
      * Error code of the JSON response a guest receives from an action that requires a capability.
      */
     public const UNAUTHENTICATED_CODE = 'pollora_ajax_unauthenticated';
+
+    /**
+     * @param  bool|null  $debug  Whether a refused request is told which nonce was expected; the `WP_DEBUG` constant
+     *                            decides when null.
+     */
+    public function __construct(private readonly ?bool $debug = null) {}
 
     /**
      * Registers `wp_ajax_{name}` for logged-in users and/or
@@ -72,17 +79,29 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
             $callback = $this->authorized($callback, $capability);
         }
 
-        $policy = $action->getNoncePolicy();
+        return match ($action->getNoncePolicy()) {
+            NoncePolicy::Verify => $this->verified($action, $callback),
+            NoncePolicy::Disabled => $callback,
+            NoncePolicy::Undecided => $this->protectUndecided($action, $callback),
+        };
+    }
 
-        if ($policy === NoncePolicy::Undecided) {
-            if ($this->verifiesByDefault($action)) {
-                $policy = NoncePolicy::Verify;
-            } else {
-                $this->reportUndecided($action);
-            }
+    /**
+     * An action that did not choose verifies a nonce, unless the filter says otherwise.
+     */
+    private function protectUndecided(AjaxAction $action, callable $callback): callable
+    {
+        if (! $this->verifiesByDefault($action)) {
+            $this->reportUnchecked($action);
+
+            return $callback;
         }
 
-        return $policy === NoncePolicy::Verify ? $this->verified($action, $callback) : $callback;
+        if ($action->isBothOrGuestUsers()) {
+            $this->reportUndecidedForGuests($action);
+        }
+
+        return $this->verified($action, $callback);
     }
 
     /**
@@ -117,28 +136,52 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
 
     private function verifiesByDefault(AjaxAction $action): bool
     {
-        return (bool) apply_filters(self::NONCE_BY_DEFAULT_FILTER, false, $action->getName());
+        return apply_filters(self::NONCE_BY_DEFAULT_FILTER, true, $action->getName()) !== false;
     }
 
     /**
      * The callback wrapped in a nonce check: a request without a valid nonce gets a 403 and $callback does not run.
+     * While debugging, the answer carries a hint for the developer: the nonce that was expected and, for an action
+     * that did not choose, why one was asked.
      */
     private function verified(AjaxAction $action, callable $callback): Closure
     {
         $nonceAction = $action->getNonceAction();
+        $hint = $this->nonceHint($action);
+        $debug = $this->debug;
 
-        return static function (mixed ...$arguments) use ($callback, $nonceAction): mixed {
+        return static function (mixed ...$arguments) use ($callback, $nonceAction, $hint, $debug): mixed {
             if (! check_ajax_referer($nonceAction, false, false)) {
-                wp_send_json_error([
-                    'code' => self::INVALID_NONCE_CODE,
-                    'message' => 'Invalid or expired security token.',
-                ], 403);
+                $error = ['code' => self::INVALID_NONCE_CODE, 'message' => 'Invalid or expired security token.'];
+
+                if ($debug ?? (defined('WP_DEBUG') && WP_DEBUG)) {
+                    $error['hint'] = $hint;
+                }
+
+                wp_send_json_error($error, 403);
 
                 return null;
             }
 
             return call_user_func_array($callback, $arguments);
         };
+    }
+
+    /**
+     * What a refused request is told about the nonce it should have carried.
+     */
+    private function nonceHint(AjaxAction $action): string
+    {
+        $hint = sprintf(
+            'Send a nonce for "%1$s" (wp_create_nonce(\'%1$s\')) in the _ajax_nonce or _wpnonce request field.',
+            $action->getNonceAction(),
+        );
+
+        if ($action->getNoncePolicy() === NoncePolicy::Undecided) {
+            $hint .= ' This action chose no nonce policy, so pollora/ajax verifies one by default; declare ->withoutNonce() (nonce: false) when no nonce makes sense.';
+        }
+
+        return $hint;
     }
 
     /**
@@ -192,10 +235,11 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
     }
 
     /**
-     * Tells the developer that the action never chose how it is protected. Skipped during an AJAX request: the
-     * notice would be printed into the JSON the browser is waiting for.
+     * Tells the developer that an action open to guests got the default nonce check, which a guest or a cached page
+     * does not always satisfy: this audience is where the choice has to be made. Skipped during an AJAX request:
+     * the notice would be printed into the JSON the browser is waiting for.
      */
-    private function reportUndecided(AjaxAction $action): void
+    private function reportUndecidedForGuests(AjaxAction $action): void
     {
         if (wp_doing_ajax()) {
             return;
@@ -204,11 +248,31 @@ class WordPressAjaxActionRegistrar implements AjaxActionRegistrarPort
         _doing_it_wrong(
             'Ajax::listen("'.$action->getName().'")',
             sprintf(
-                'The AJAX action "%1$s" does not say how it is protected against cross-site request forgery. It runs without a nonce check for now; the next major version verifies a nonce by default. Declare ->requireNonce() (#[Ajax(\'%1$s\', nonce: true)]), or ->withoutNonce() (nonce: false) when no nonce makes sense. Return true from the "%2$s" filter to verify a nonce on every action that did not choose.',
+                'The AJAX action "%1$s" is open to guests and chose no nonce policy, so a nonce is verified for them too. A guest\'s nonce is tied to no user, and a cached page can serve an expired one. Declare ->requireNonce() (#[Ajax(\'%1$s\', nonce: true)]) to keep the check, or ->withoutNonce() (nonce: false) for a public or cached endpoint; that removes the check for logged-in users as well.',
+                $action->getName(),
+            ),
+            '2.0.0',
+        );
+    }
+
+    /**
+     * Tells the developer that the filter turned the default check off for an action that never chose. Skipped
+     * during an AJAX request, like the notice above.
+     */
+    private function reportUnchecked(AjaxAction $action): void
+    {
+        if (wp_doing_ajax()) {
+            return;
+        }
+
+        _doing_it_wrong(
+            'Ajax::listen("'.$action->getName().'")',
+            sprintf(
+                'The AJAX action "%1$s" runs without a nonce check: it chose no nonce policy and the "%2$s" filter returned false. Declare ->requireNonce() (#[Ajax(\'%1$s\', nonce: true)]), or ->withoutNonce() (nonce: false) when no nonce makes sense.',
                 $action->getName(),
                 self::NONCE_BY_DEFAULT_FILTER,
             ),
-            '1.2.0',
+            '2.0.0',
         );
     }
 }

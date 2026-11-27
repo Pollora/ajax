@@ -18,9 +18,9 @@ use Pollora\Ajax\Factory\AjaxFactory;
  * `Pollora\Support\Facades\Ajax` which resolves from the service container.
  *
  * Usage:
- *     Ajax::listen('my_action', $callback);                // logged-in users (default)
- *     Ajax::listen('public', $callback)->forAllUsers();    // everyone
- *     Ajax::listen('guest', $callback)->forGuestUsers();   // guests only
+ *     Ajax::listen('my_action', $callback);                // logged-in users, nonce verified (defaults)
+ *     Ajax::listen('public', $callback)->forAllUsers();    // everyone, nonce verified
+ *     Ajax::listen('beacon', $callback)->forGuestUsers()->withoutNonce(); // guests only, no nonce
  *
  * @see AjaxFactory
  */
@@ -47,8 +47,8 @@ class Ajax
     }
 
     /**
-     * The nonce a request must carry for an action that verifies one (`->requireNonce()`), to send in the
-     * `_ajax_nonce` request field.
+     * The nonce a request must carry for an action that verifies one (every action that did not say
+     * `->withoutNonce()`), to send in the `_ajax_nonce` request field.
      *
      * @param  string  $action  The nonce action: the AJAX action name, or what was given to `requireNonce()`.
      */

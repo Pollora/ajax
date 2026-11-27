@@ -20,7 +20,7 @@ beforeEach(function (): void {
 describe('an action that verifies a nonce', function (): void {
     it('refuses a request without a valid nonce, with a 403 and a code to recognise it', function (): void {
         $ran = [];
-        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', function () use (&$ran): void {
+        (new WordPressAjaxActionRegistrar(debug: true))->register((new AjaxAction('save_note', function () use (&$ran): void {
             $ran[] = 'ran';
         }))->requireNonce());
 
@@ -29,7 +29,11 @@ describe('an action that verifies a nonce', function (): void {
         expect($result)->toBeNull()
             ->and($ran)->toBe([])
             ->and(WpMock::$jsonErrors)->toBe([[
-                'data' => ['code' => 'pollora_ajax_invalid_nonce', 'message' => 'Invalid or expired security token.'],
+                'data' => [
+                    'code' => 'pollora_ajax_invalid_nonce',
+                    'message' => 'Invalid or expired security token.',
+                    'hint' => 'Send a nonce for "save_note" (wp_create_nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field.',
+                ],
                 'status' => 403,
             ]]);
     });
@@ -48,6 +52,17 @@ describe('an action that verifies a nonce', function (): void {
         WpMock::hooked('wp_ajax_save_note')['callback']();
 
         expect(WpMock::$nonceChecks[0]['action'])->toBe('notes_form');
+    });
+
+    it('names the nonce action it was given in the hint of the refusal', function (): void {
+        (new WordPressAjaxActionRegistrar(debug: true))->register((new AjaxAction('save_note', fn (): null => null))->requireNonce('notes_form'));
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$jsonErrors[0]['data'])->toHaveKey(
+            'hint',
+            'Send a nonce for "notes_form" (wp_create_nonce(\'notes_form\')) in the _ajax_nonce or _wpnonce request field.',
+        );
     });
 
     it('runs the callback with its arguments, and returns what it returns, when the nonce is valid', function (): void {
@@ -97,62 +112,165 @@ describe('an action that turned the nonce off on purpose', function (): void {
 });
 
 describe('an action that never chose', function (): void {
-    it('is hooked as it is and the developer is told, once, with the action and the way out', function (): void {
-        $callback = fn (): null => null;
-        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', $callback));
+    it('refuses a request without a valid nonce, and says why a nonce was asked and how to opt out', function (): void {
+        $ran = [];
+        (new WordPressAjaxActionRegistrar(debug: true))->register(new AjaxAction('save_note', function () use (&$ran): void {
+            $ran[] = 'ran';
+        }));
 
-        expect(WpMock::hooked('wp_ajax_save_note')['callback'])->toBe($callback)
-            ->and(WpMock::$doingItWrong)->toHaveCount(1)
-            ->and(WpMock::$doingItWrong[0]['function'])->toBe('Ajax::listen("save_note")')
-            ->and(WpMock::$doingItWrong[0]['version'])->toBe('1.2.0')
-            ->and(WpMock::$doingItWrong[0]['message'])->toBe(
-                'The AJAX action "save_note" does not say how it is protected against cross-site request forgery. It runs without a nonce check for now; the next major version verifies a nonce by default. Declare ->requireNonce() (#[Ajax(\'save_note\', nonce: true)]), or ->withoutNonce() (nonce: false) when no nonce makes sense. Return true from the "pollora/ajax/nonce_by_default" filter to verify a nonce on every action that did not choose.'
-            );
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect($ran)->toBe([])
+            ->and(WpMock::$nonceChecks)->toBe([['action' => 'save_note', 'query_arg' => false, 'stop' => false]])
+            ->and(WpMock::$jsonErrors)->toBe([[
+                'data' => [
+                    'code' => 'pollora_ajax_invalid_nonce',
+                    'message' => 'Invalid or expired security token.',
+                    'hint' => 'Send a nonce for "save_note" (wp_create_nonce(\'save_note\')) in the _ajax_nonce or _wpnonce request field. This action chose no nonce policy, so pollora/ajax verifies one by default; declare ->withoutNonce() (nonce: false) when no nonce makes sense.',
+                ],
+                'status' => 403,
+            ]]);
     });
 
-    it('is not reported while an AJAX request is being answered', function (): void {
-        WpMock::$doingAjax = true;
+    it('runs the callback when the request carries a valid nonce', function (): void {
+        WpMock::$nonceValid = true;
+        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): string => 'done'));
+
+        expect(WpMock::hooked('wp_ajax_save_note')['callback']())->toBe('done');
+    });
+
+    it('is not reported when only logged-in users reach it: it is protected', function (): void {
         (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
 
         expect(WpMock::$doingItWrong)->toBe([]);
     });
 
-    it('asks the filter, with the action name, whether to verify a nonce', function (): void {
+    it('verifies the guest hooks too', function (): void {
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', fn (): null => null))->forAllUsers());
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+        WpMock::hooked('wp_ajax_nopriv_save_note')['callback']();
+
+        expect(WpMock::$nonceChecks)->toHaveCount(2)
+            ->and(WpMock::$jsonErrors)->toHaveCount(2);
+    });
+
+    it('tells the developer, once, to choose when guests reach it', function (string $audience): void {
+        $action = new AjaxAction('load_more', fn (): null => null);
+        $action->setUserType($audience);
+        (new WordPressAjaxActionRegistrar)->register($action);
+
+        expect(WpMock::$doingItWrong)->toHaveCount(1)
+            ->and(WpMock::$doingItWrong[0]['function'])->toBe('Ajax::listen("load_more")')
+            ->and(WpMock::$doingItWrong[0]['version'])->toBe('2.0.0')
+            ->and(WpMock::$doingItWrong[0]['message'])->toBe(
+                'The AJAX action "load_more" is open to guests and chose no nonce policy, so a nonce is verified for them too. A guest\'s nonce is tied to no user, and a cached page can serve an expired one. Declare ->requireNonce() (#[Ajax(\'load_more\', nonce: true)]) to keep the check, or ->withoutNonce() (nonce: false) for a public or cached endpoint; that removes the check for logged-in users as well.'
+            );
+    })->with([AjaxAction::GUEST_USERS, AjaxAction::BOTH_USERS]);
+
+    it('does not report it while an AJAX request is being answered', function (): void {
+        WpMock::$doingAjax = true;
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('load_more', fn (): null => null))->forGuestUsers());
+
+        expect(WpMock::$doingItWrong)->toBe([]);
+    });
+
+    it('asks the filter, with the action name, and verifies a nonce unless told otherwise', function (): void {
         (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
 
         expect(WpMock::$filterCalls)->toBe([[
             'hook' => 'pollora/ajax/nonce_by_default',
-            'value' => false,
+            'value' => true,
             'arguments' => ['save_note'],
         ]]);
     });
 
-    it('verifies a nonce when the filter says to, and is not reported then', function (): void {
-        WpMock::$filters['pollora/ajax/nonce_by_default'] = true;
+    it('stays protected unless the filter answers exactly false', function (mixed $answer): void {
+        WpMock::$filters['pollora/ajax/nonce_by_default'] = $answer;
         (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
 
         WpMock::hooked('wp_ajax_save_note')['callback']();
 
-        expect(WpMock::$nonceChecks)->toHaveCount(1)
-            ->and(WpMock::$nonceChecks[0]['action'])->toBe('save_note')
-            ->and(WpMock::$doingItWrong)->toBe([]);
-    });
+        expect(WpMock::$nonceChecks)->toHaveCount(1);
+    })->with([
+        'a filter that forgot to return' => [null],
+        'zero' => [0],
+        'an empty string' => [''],
+        'true' => [true],
+    ]);
 
-    it('stays unchecked when the filter says no', function (): void {
+    it('runs without a check when the filter says no, and the developer is told', function (): void {
         WpMock::$filters['pollora/ajax/nonce_by_default'] = false;
         $callback = fn (): null => null;
-        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', $callback));
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', $callback))->forAllUsers());
 
         expect(WpMock::hooked('wp_ajax_save_note')['callback'])->toBe($callback)
-            ->and(WpMock::$nonceChecks)->toBe([]);
+            ->and(WpMock::hooked('wp_ajax_nopriv_save_note')['callback'])->toBe($callback)
+            ->and(WpMock::$nonceChecks)->toBe([])
+            ->and(WpMock::$doingItWrong)->toHaveCount(1)
+            ->and(WpMock::$doingItWrong[0]['function'])->toBe('Ajax::listen("save_note")')
+            ->and(WpMock::$doingItWrong[0]['version'])->toBe('2.0.0')
+            ->and(WpMock::$doingItWrong[0]['message'])->toBe(
+                'The AJAX action "save_note" runs without a nonce check: it chose no nonce policy and the "pollora/ajax/nonce_by_default" filter returned false. Declare ->requireNonce() (#[Ajax(\'save_note\', nonce: true)]), or ->withoutNonce() (nonce: false) when no nonce makes sense.'
+            );
     });
 
-    it('takes any truthy answer of the filter as a yes', function (): void {
-        WpMock::$filters['pollora/ajax/nonce_by_default'] = 1;
+    it('is not reported during an AJAX request when the filter says no', function (): void {
+        WpMock::$doingAjax = true;
+        WpMock::$filters['pollora/ajax/nonce_by_default'] = false;
         (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
 
-        expect(WpMock::hooked('wp_ajax_save_note')['callback'])->toBeInstanceOf(Closure::class);
+        expect(WpMock::$doingItWrong)->toBe([]);
     });
+
+    it('leaves an explicit requirement alone, whatever the filter says', function (): void {
+        WpMock::$filters['pollora/ajax/nonce_by_default'] = false;
+        (new WordPressAjaxActionRegistrar)->register((new AjaxAction('save_note', fn (): null => null))->requireNonce());
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$nonceChecks)->toHaveCount(1);
+    });
+});
+
+describe('the hint of a refused request', function (): void {
+    it('is left out when debugging is off: the answer says nothing to a visitor about the nonce expected', function (): void {
+        (new WordPressAjaxActionRegistrar(debug: false))->register(new AjaxAction('save_note', fn (): null => null));
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$jsonErrors)->toBe([[
+            'data' => ['code' => 'pollora_ajax_invalid_nonce', 'message' => 'Invalid or expired security token.'],
+            'status' => 403,
+        ]]);
+    });
+
+    it('is left out when WP_DEBUG is not defined', function (): void {
+        expect(defined('WP_DEBUG'))->toBeFalse();
+
+        (new WordPressAjaxActionRegistrar)->register(new AjaxAction('save_note', fn (): null => null));
+
+        WpMock::hooked('wp_ajax_save_note')['callback']();
+
+        expect(WpMock::$jsonErrors[0]['data'])->not->toHaveKey('hint');
+    });
+
+    it('follows the WP_DEBUG constant', function (bool $debug): void {
+        // A constant cannot be redefined: each value is tried in its own PHP process.
+        $script = sprintf(
+            'require %s; require %s; define("WP_DEBUG", %s);'
+            .'(new Pollora\Ajax\Adapter\Out\WordPress\WordPressAjaxActionRegistrar)->register(new Pollora\Ajax\Domain\Model\AjaxAction("save_note", "strlen"));'
+            .'WpMock::hooked("wp_ajax_save_note")["callback"]();'
+            .'echo isset(WpMock::$jsonErrors[0]["data"]["hint"]) ? "hint" : "no hint";',
+            var_export(dirname(__DIR__, 3).'/vendor/autoload.php', true),
+            var_export(dirname(__DIR__, 2).'/Helpers/helpers.php', true),
+            var_export($debug, true),
+        );
+
+        $output = shell_exec(escapeshellarg(PHP_BINARY).' -d display_errors=stderr -d error_reporting=0 -r '.escapeshellarg($script));
+
+        expect($output)->toBe($debug ? 'hint' : 'no hint');
+    })->with(['on' => [true], 'off' => [false]]);
 });
 
 describe('the nonce a page sends', function (): void {
